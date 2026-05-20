@@ -3,24 +3,39 @@ import plotly.graph_objects as go
 import pandas as pd
 import math
 
-# --- KONFIGURACJA STRONY (Przyjazny styl domowy) ---
-st.set_page_config(page_title="Rodzinny Globus", layout="wide", initial_sidebar_state="expanded")
+# --- KONFIGURACJA STRONY (Domowy klimat, ale dostosowany do ciemnego tła) ---
+st.set_page_config(page_title="Rodzinny Globus Laury i Zosi", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS: Jasny, radosny motyw dla dzieci ---
+# --- CSS: Urealnione, kosmiczne tło, radosne panele ---
+# Dostosowuję gradienty i kolory, aby wyglądały dobrze na ciemnym tle.
 st.markdown("""
 <style>
-    /* Zaokrąglone, kolorowe panele */
+    /* Zaokrąglone, kolorowe panele - jasne na ciemnym tle */
     [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
         border-radius: 25px;
-        background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+        background: rgba(255, 255, 255, 0.95); /* Prawie białe, matowe tło */
         padding: 25px;
-        border: 3px solid #a8d5e2;
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        border: 3px solid #ff6b6b; /* Czerwony akcent dla paneli */
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
         color: #333;
     }
     /* Powiększenie i pokolorowanie tekstów */
-    .stMarkdown h3 { color: #ff6b6b; font-weight: bold; }
+    .stMarkdown h3 { color: #ff6b6b; font-weight: bold; margin-bottom: 0.5rem; }
     .stMarkdown p { font-size: 1.1rem; }
+    .stMarkdown h2 { color: white; text-align: center; margin-bottom: 2rem; } /* Główny tytuł biały */
+
+    /* Ulepszenie paska bocznego na ciemnym tle */
+    [data-testid="stSidebar"] {
+        background-color: #2c3e50;
+        color: #ecf0f1;
+    }
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h3 { color: #ff9f43; }
+    [data-testid="stSidebar"] .stSelectbox, [data-testid="stSidebar"] .stButton button {
+        color: #333;
+    }
+
+    /* Urealnienie tekstu 'Odległość' na jasnym panelu */
+    .stSuccess { color: #27ae60; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -51,8 +66,18 @@ with st.sidebar:
     
     lista_miast = list(miejsca.keys())
     
-    start = st.selectbox("🛫 Skąd lecimy?", lista_miast, index=0) # Domyślnie Polska
-    cel = st.selectbox("🛬 Dokąd lecimy?", lista_miast, index=1)   # Domyślnie Chicago
+    # Stan sesji, aby zachować wybór miast
+    if 'start' not in st.session_state:
+        st.session_state.start = lista_miast[0]
+    if 'cel' not in st.session_state:
+        st.session_state.cel = lista_miast[1]
+
+    start = st.selectbox("🛫 Skąd lecimy?", lista_miast, index=lista_miast.index(st.session_state.start))
+    cel = st.selectbox("🛬 Dokąd lecimy?", lista_miast, index=lista_miast.index(st.session_state.cel))
+
+    # Aktualizacja stanu sesji
+    st.session_state.start = start
+    st.session_state.cel = cel
     
     st.markdown("---")
     if start != cel:
@@ -64,7 +89,7 @@ with st.sidebar:
         st.warning("Wybierz dwa różne miejsca, żeby wytyczyć trasę lotu.")
 
 # --- GŁÓWNY EKRAN ---
-st.title("🌍 Odkrywca Świata Laury i Zosi")
+st.markdown("## 🌍 Odkrywca Świata Laury i Zosi")
 
 col_map, col_card = st.columns([2, 1])
 
@@ -73,10 +98,22 @@ lat1, lon1 = miejsca[start]["lat"], miejsca[start]["lon"]
 lat2, lon2 = miejsca[cel]["lat"], miejsca[cel]["lon"]
 
 with col_map:
-    # --- RYSOWANIE GLOBUSA (Używamy Graph Objects dla pełnej kontroli) ---
+    # --- RYSOWANIE GLOBUSA (Fotorealizm i Pełny Widok) ---
     fig = go.Figure()
 
-    # 1. Dodajemy wszystkie punkty miast na mapę
+    # 1. Dodajemy fotorealistyczną warstwę topograficzną
+    fig.update_geos(
+        projection_type="orthographic",
+        base_layer="esri-imagery",  # Fotorealistyczna tekstura
+        showcoastlines=True, coastlinecolor="rgba(255,255,255,0.4)", # Subtelne, jasne wybrzeża
+        showland=False, # Wyłączone, bo używamy obrazu
+        showocean=False, # Wyłączone, bo używamy obrazu
+        showcountries=False, # Bez granic państw, dla czystości
+        resolution=50,
+        center=dict(lat=(lat1+lat2)/2, lon=(lon1+lon2)/2)
+    )
+
+    # 2. Dodajemy wszystkie punkty miast na mapę - urealnione punkty
     lats = [d["lat"] for d in miejsca.values()]
     lons = [d["lon"] for d in miejsca.values()]
     names = list(miejsca.keys())
@@ -87,48 +124,40 @@ with col_map:
         text=names,
         hoverinfo='text',
         mode='markers',
-        marker=dict(size=14, color='#ff6b6b', line=dict(width=2, color='white')),
+        # Małe, subtelne, "błyszczące" złote punkty
+        marker=dict(size=8, color='#f1c40f', line=dict(width=1, color='white')),
         name="Miejsca"
     ))
 
-    # 2. Rysujemy RZECZYWISTĄ trasę lotu (Ortodroma)
+    # 3. Rysujemy RZECZYWISTĄ trasę lotu (Ortodroma) - urealniona ciągła linia
     if start != cel:
         fig.add_trace(go.Scattergeo(
             lon=[lon1, lon2],
             lat=[lat1, lat2],
             mode='lines',
-            line=dict(width=4, color='#4facfe', dash='dashdot'),
+            # Ciągła linia z delikatnym efektem poświaty (grubsza i kolorowa)
+            line=dict(width=5, color='#3498db', dash='solid'),
             name='Trasa'
         ))
-        # Dodajemy ikonkę samolotu w miejscu docelowym
+        # Dodajemy mniejszą, urealnioną ikonę samolotu w miejscu docelowym
         fig.add_trace(go.Scattergeo(
             lon=[lon2],
             lat=[lat2],
             text=["✈️"],
             mode='text',
-            textfont=dict(size=40),
+            textfont=dict(size=25), # Umniejszony samolot
             hoverinfo='none',
             name="Samolot"
         ))
 
-    # Jasna, radosna kolorystyka Ziemi
-    fig.update_geos(
-        projection_type="orthographic",
-        showcoastlines=True, coastlinecolor="#ffffff",
-        showland=True, landcolor="#f1f7ed", # Jasna, ciepła zieleń
-        showocean=True, oceancolor="#a8d5e2", # Przyjazny, jasny błękit
-        showcountries=True, countrycolor="#dcebc8",
-        # Wyśrodkowanie globusa na środek trasy lotu
-        center=dict(lat=(lat1+lat2)/2, lon=(lon1+lon2)/2)
-    )
-
     fig.update_layout(
         margin={"r":0, "t":0, "l":0, "b":0},
-        paper_bgcolor='rgba(0,0,0,0)',
-        showlegend=False
+        paper_bgcolor='#0d1117', # Ciemne, kosmiczne tło dla kolumny
+        showlegend=False,
     )
 
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    # Wyświetlenie mapy w Streamlit z wymuszoną, stałą wysokością, aby pokazać cały globus
+    st.plotly_chart(fig, use_container_width=True, height=700, config={'displayModeBar': False})
 
 # --- KARTA CELU PODRÓŻY ---
 with col_card:

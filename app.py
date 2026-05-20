@@ -1,20 +1,18 @@
 import streamlit as st
-import plotly.graph_objects as go
+import plotly.express as px
 import pandas as pd
-import math
-import time
 
 # --- 1. KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Geografia dla Dzieci", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS: JASNY, CZYTELNY, EDUKACYJNY STYL ---
+# --- 2. CSS: JASNY, CZYTELNY STYL ---
 st.markdown("""
 <style>
     .stApp {
-        background-color: #f4f9f9; /* Bardzo jasny, przyjemny błękit/szarość */
+        background-color: #f4f9f9;
         color: #333333;
     }
-    /* Zaokrąglone, przyjazne karty */
+    /* Zaokrąglona, przyjazna karta po prawej stronie */
     [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
         background: white;
         border-radius: 20px;
@@ -24,7 +22,6 @@ st.markdown("""
     }
     h2 { color: #2c3e50; text-align: center; font-weight: bold; margin-bottom: 20px;}
     h3 { color: #e74c3c; font-weight: bold;}
-    .stSelectbox label { font-size: 1.1rem; font-weight: bold; color: #2c3e50; }
     
     /* Wygląd lewego panelu */
     [data-testid="stSidebar"] {
@@ -34,164 +31,123 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. BAZA DANYCH - KRAJE EUROPY ---
-miejsca = {
-    "Polska": {"stolica": "Warszawa", "lat": 52.229, "lon": 21.012, "kod": "pl", "opis": "Nasz piękny kraj! Słynie z pierogów, smoka wawelskiego i pięknych gór."},
-    "Niemcy": {"stolica": "Berlin", "lat": 52.520, "lon": 13.405, "kod": "de", "opis": "Nasi sąsiedzi. Znani z pysznych precli i pięknych, baśniowych zamków."},
-    "Francja": {"stolica": "Paryż", "lat": 48.856, "lon": 2.352, "kod": "fr", "opis": "To tutaj stoi słynna Wieża Eiffla, a ludzie uwielbiają jeść chrupiące bagietki."},
-    "Hiszpania": {"stolica": "Madryt", "lat": 40.416, "lon": -3.703, "kod": "es", "opis": "Słoneczny kraj, gdzie zawsze jest ciepło, a w miastach rosną pomarańcze!"},
-    "Włochy": {"stolica": "Rzym", "lat": 41.902, "lon": 12.496, "kod": "it", "opis": "Kraj w kształcie buta! Ojczyzna najlepszej pizzy i spaghetti na świecie."},
-    "Wielka Brytania": {"stolica": "Londyn", "lat": 51.507, "lon": -0.127, "kod": "gb", "opis": "Kraj, w którym mieszka król. Mają tam słynne, czerwone, piętrowe autobusy."},
-    "Grecja": {"stolica": "Ateny", "lat": 37.983, "lon": 23.727, "kod": "gr", "opis": "Bardzo stary kraj pełen wysp i białych domków z niebieskimi dachami."},
-    "Szwecja": {"stolica": "Sztokholm", "lat": 59.329, "lon": 18.068, "kod": "se", "opis": "Zimny kraj na północy, skąd pochodzi Pippi Pończoszanka i klocki LEGO (blisko, bo z Danii!)."},
-    "Norwegia": {"stolica": "Oslo", "lat": 59.913, "lon": 10.752, "kod": "no", "opis": "Kraj wikingów, gdzie można zobaczyć zorzę polarną na niebie!"},
-    "Finlandia": {"stolica": "Helsinki", "lat": 60.169, "lon": 24.938, "kod": "fi", "opis": "To tutaj, w krainie zwanej Laponią, mieszka prawdziwy Święty Mikołaj."},
-    "Portugalia": {"stolica": "Lizbona", "lat": 38.722, "lon": -9.139, "kod": "pt", "opis": "Leży nad samym oceanem, stąd w dawnych czasach wypływali najwięksi odkrywcy."},
-    "Czechy": {"stolica": "Praga", "lat": 50.075, "lon": 14.437, "kod": "cz", "opis": "Kraj słynący z Krecika i pięknej stolicy pełnej mostów."},
-    "Austria": {"stolica": "Wiedeń", "lat": 48.208, "lon": 16.373, "kod": "at", "opis": "Kraj pięknych Alp, gdzie zimą wszyscy jeżdżą na nartach."},
-    "Szwajcaria": {"stolica": "Berno", "lat": 46.948, "lon": 7.447, "kod": "ch", "opis": "Słynie z produkcji najpyszniejszej mlecznej czekolady i dokładnych zegarków."},
-    "Holandia": {"stolica": "Amsterdam", "lat": 52.367, "lon": 4.904, "kod": "nl", "opis": "Kraj wiatraków, serów i milionów rowerów, którymi jeżdżą prawie wszyscy!"},
-    "Belgia": {"stolica": "Bruksela", "lat": 50.850, "lon": 4.351, "kod": "be", "opis": "Ojczyzna pysznych, gorących gofrów oraz słynnych komiksów o Smerfach."},
-    "Irlandia": {"stolica": "Dublin", "lat": 53.349, "lon": -6.260, "kod": "ie", "opis": "Zielona wyspa, której symbolem jest koniczynka i małe skrzaty - Leprechauny."},
-    "Dania": {"stolica": "Kopenhaga", "lat": 55.676, "lon": 12.568, "kod": "dk", "opis": "Prawdziwa ojczyzna klocków LEGO! Mają tam ogromny park rozrywki Legoland."},
-    "Chorwacja": {"stolica": "Zagrzeb", "lat": 45.815, "lon": 15.981, "kod": "hr", "opis": "Kraj nad ciepłym morzem, w którym plaże są kamieniste, a woda przejrzysta jak szkło."},
-    "Węgry": {"stolica": "Budapeszt", "lat": 47.497, "lon": 19.040, "kod": "hu", "opis": "Znani z pysznych dań doprawianych czerwoną papryką oraz basenów z gorącą wodą."},
-    "Rumunia": {"stolica": "Bukareszt", "lat": 44.426, "lon": 26.102, "kod": "ro", "opis": "Tutaj, w krainie zwanej Transylwanią, znajduje się mroczny zamek hrabiego Draculi."},
-    "Słowacja": {"stolica": "Bratysława", "lat": 48.148, "lon": 17.107, "kod": "sk", "opis": "Mają wspaniałe góry Tatry (te same co my!) oraz mnóstwo starych zamków."},
-    "Ukraina": {"stolica": "Kijów", "lat": 50.450, "lon": 30.523, "kod": "ua", "opis": "Nasz duży sąsiad, w którym znajdują się złote pola pszenicy i rosną piękne słoneczniki."},
-    "Litwa": {"stolica": "Wilno", "lat": 54.687, "lon": 25.279, "kod": "lt", "opis": "Kraj naszych wschodnich sąsiadów, z którym kiedyś tworzyliśmy jedno wielkie państwo."},
-    "Łotwa": {"stolica": "Ryga", "lat": 56.949, "lon": 24.105, "kod": "lv", "opis": "Leży nad zimnym Morzem Bałtyckim i słynie z gęstych, zielonych lasów."},
-    "Estonia": {"stolica": "Tallinn", "lat": 59.437, "lon": 24.753, "kod": "ee", "opis": "Najbardziej nowoczesny kraj na wschodzie Europy, gdzie mnóstwo rzeczy robi się przez internet!"}
-}
+# --- 3. BAZA DANYCH (Teraz z kodami ISO-3 do rysowania kształtów państw) ---
+baza = [
+    {"Kraj": "Polska", "Stolica": "Warszawa", "ISO3": "POL", "ISO2": "pl", "Opis": "Nasz piękny kraj! Słynie z pierogów, smoka wawelskiego i pięknych gór."},
+    {"Kraj": "Niemcy", "Stolica": "Berlin", "ISO3": "DEU", "ISO2": "de", "Opis": "Nasi sąsiedzi. Znani z pysznych precli i pięknych, baśniowych zamków."},
+    {"Kraj": "Francja", "Stolica": "Paryż", "ISO3": "FRA", "ISO2": "fr", "Opis": "To tutaj stoi słynna Wieża Eiffla, a ludzie uwielbiają jeść chrupiące bagietki."},
+    {"Kraj": "Hiszpania", "Stolica": "Madryt", "ISO3": "ESP", "ISO2": "es", "Opis": "Słoneczny kraj, gdzie zawsze jest ciepło, a w miastach rosną pomarańcze!"},
+    {"Kraj": "Włochy", "Stolica": "Rzym", "ISO3": "ITA", "ISO2": "it", "Opis": "Kraj w kształcie buta! Ojczyzna najlepszej pizzy i spaghetti na świecie."},
+    {"Kraj": "Wielka Brytania", "Stolica": "Londyn", "ISO3": "GBR", "ISO2": "gb", "Opis": "Kraj, w którym mieszka król. Mają tam słynne, czerwone, piętrowe autobusy."},
+    {"Kraj": "Grecja", "Stolica": "Ateny", "ISO3": "GRC", "ISO2": "gr", "Opis": "Bardzo stary kraj pełen wysp i białych domków z niebieskimi dachami."},
+    {"Kraj": "Szwecja", "Stolica": "Sztokholm", "ISO3": "SWE", "ISO2": "se", "Opis": "Zimny kraj na północy, skąd pochodzi Pippi Pończoszanka."},
+    {"Kraj": "Norwegia", "Stolica": "Oslo", "ISO3": "NOR", "ISO2": "no", "Opis": "Kraj wikingów, gdzie można zobaczyć zorzę polarną na niebie!"},
+    {"Kraj": "Finlandia", "Stolica": "FIN", "ISO3": "FIN", "ISO2": "fi", "Opis": "To tutaj, w krainie zwanej Laponią, mieszka prawdziwy Święty Mikołaj."},
+    {"Kraj": "Portugalia", "Stolica": "Lizbona", "ISO3": "PRT", "ISO2": "pt", "Opis": "Leży nad samym oceanem, stąd w dawnych czasach wypływali najwięksi odkrywcy."},
+    {"Kraj": "Czechy", "Stolica": "Praga", "ISO3": "CZE", "ISO2": "cz", "Opis": "Kraj słynący z Krecika i pięknej stolicy pełnej mostów."},
+    {"Kraj": "Austria", "Stolica": "Wiedeń", "ISO3": "AUT", "ISO2": "at", "Opis": "Kraj pięknych Alp, gdzie zimą wszyscy jeżdżą na nartach."},
+    {"Kraj": "Szwajcaria", "Stolica": "Berno", "ISO3": "CHE", "ISO2": "ch", "Opis": "Słynie z produkcji najpyszniejszej mlecznej czekolady i dokładnych zegarków."},
+    {"Kraj": "Holandia", "Stolica": "Amsterdam", "ISO3": "NLD", "ISO2": "nl", "Opis": "Kraj wiatraków, serów i milionów rowerów, którymi jeżdżą prawie wszyscy!"},
+    {"Kraj": "Belgia", "Stolica": "Bruksela", "ISO3": "BEL", "ISO2": "be", "Opis": "Ojczyzna pysznych, gorących gofrów oraz słynnych komiksów o Smerfach."},
+    {"Kraj": "Irlandia", "Stolica": "Dublin", "ISO3": "IRL", "ISO2": "ie", "Opis": "Zielona wyspa, której symbolem jest koniczynka i małe skrzaty - Leprechauny."},
+    {"Kraj": "Dania", "Stolica": "Kopenhaga", "ISO3": "DNK", "ISO2": "dk", "Opis": "Prawdziwa ojczyzna klocków LEGO! Mają tam ogromny park rozrywki Legoland."},
+    {"Kraj": "Chorwacja", "Stolica": "Zagrzeb", "ISO3": "HRV", "ISO2": "hr", "Opis": "Kraj nad ciepłym morzem, w którym plaże są kamieniste, a woda przejrzysta jak szkło."},
+    {"Kraj": "Węgry", "Stolica": "Budapeszt", "ISO3": "HUN", "ISO2": "hu", "Opis": "Znani z pysznych dań doprawianych czerwoną papryką oraz basenów z gorącą wodą."},
+    {"Kraj": "Rumunia", "Stolica": "Bukareszt", "ISO3": "ROU", "ISO2": "ro", "Opis": "Tutaj, w krainie zwanej Transylwanią, znajduje się mroczny zamek hrabiego Draculi."},
+    {"Kraj": "Słowacja", "Stolica": "Bratysława", "ISO3": "SVK", "ISO2": "sk", "Opis": "Mają wspaniałe góry Tatry (te same co my!) oraz mnóstwo starych zamków."},
+    {"Kraj": "Ukraina", "Stolica": "Kijów", "ISO3": "UKR", "ISO2": "ua", "Opis": "Nasz duży sąsiad, w którym znajdują się złote pola pszenicy i rosną piękne słoneczniki."},
+    {"Kraj": "Litwa", "Stolica": "Wilno", "ISO3": "LTU", "ISO2": "lt", "Opis": "Kraj naszych wschodnich sąsiadów, z którym kiedyś tworzyliśmy jedno wielkie państwo."},
+    {"Kraj": "Łotwa", "Stolica": "Ryga", "ISO3": "LVA", "ISO2": "lv", "Opis": "Leży nad zimnym Morzem Bałtyckim i słynie z gęstych, zielonych lasów."},
+    {"Kraj": "Estonia", "Stolica": "Tallinn", "ISO3": "EST", "ISO2": "ee", "Opis": "Najbardziej nowoczesny kraj na wschodzie Europy, gdzie mnóstwo rzeczy robi się przez internet!"}
+]
 
-# --- 4. FUNKCJE POMOCNICZE ---
-def oblicz_dystans(lat1, lon1, lat2, lon2):
-    R = 6371
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    return int(R * c)
+df = pd.DataFrame(baza)
 
-# Funkcja rysująca globus - oddzielona, aby móc ją wywoływać podczas animacji
-def rysuj_globus(start_kraj, cel_kraj, samolot_lat, samolot_lon):
-    fig = go.Figure()
-
-    lat1, lon1 = miejsca[start_kraj]["lat"], miejsca[start_kraj]["lon"]
-    lat2, lon2 = miejsca[cel_kraj]["lat"], miejsca[cel_kraj]["lon"]
-
-    # --- USTAWIENIA KULI ZIEMSKIEJ (DLA DZIECI) ---
-    fig.update_geos(
-        projection_type="orthographic",
-        showcoastlines=True, coastlinecolor="black",
-        showland=True, landcolor="#8de084",      # Jasna, ciepła zieleń
-        showocean=True, oceancolor="#a8d5e2",    # Błękitny ocean
-        showcountries=True, countrycolor="black", # WYRAŹNE granice państw!
-        countrywidth=1.5,
-        resolution=50,
-        center=dict(lat=(lat1+lat2)/2, lon=(lon1+lon2)/2), # Środek kamery na Europie
-        showframe=False
-    )
-
-    # 1. Rysowanie czerwonych punktów dla państw
-    lats = [d["lat"] for d in miejsca.values()]
-    lons = [d["lon"] for d in miejsca.values()]
-    names = list(miejsca.keys())
-
-    fig.add_trace(go.Scattergeo(
-        lon=lons, lat=lats, text=names, hoverinfo='text', mode='markers',
-        marker=dict(size=8, color='red', line=dict(width=1, color='white')),
-        name="Kraje"
-    ))
-
-    # 2. Rysowanie przerywanej linii trasy (zawsze widoczna)
-    if start_kraj != cel_kraj:
-        fig.add_trace(go.Scattergeo(
-            lon=[lon1, lon2], lat=[lat1, lat2], mode='lines',
-            line=dict(width=3, color='#e74c3c', dash='dot'),
-            name='Trasa'
-        ))
-
-    # 3. Rysowanie RUCHOMEGO SAMOLOTU
-    fig.add_trace(go.Scattergeo(
-        lon=[samolot_lon], lat=[samolot_lat], text=["✈️"], mode='text',
-        textfont=dict(size=35), hoverinfo='none', name="Samolot"
-    ))
-
-    # 4. Bezpieczne marginesy - zapobiegają ucinaniu dołu mapy!
-    fig.update_layout(
-        margin=dict(l=40, r=40, t=40, b=40),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        geo=dict(bgcolor='rgba(0,0,0,0)'),
-        showlegend=False,
-    )
-    return fig
+# --- 4. ZARZĄDZANIE STANEM (Pamięć wybranego kraju) ---
+if "wybrany_kraj" not in st.session_state:
+    st.session_state.wybrany_kraj = "Polska"
 
 # --- 5. PANEL BOCZNY ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/854/854894.png", width=100) # Ikonka globusa
-    st.markdown("<h2>✈️ Plan Lotu</h2>", unsafe_allow_html=True)
+    st.image("https://cdn-icons-png.flaticon.com/512/854/854894.png", width=100)
+    st.markdown("<h2>🌍 Odkrywca</h2>", unsafe_allow_html=True)
+    st.info("Obracaj globusem i **klikaj w kolorowe państwa**, aby poznać ich sekrety!")
     
-    lista_krajow = sorted(list(miejsca.keys()))
+    # Alternatywny wybór z listy - synchronizuje się z mapą
+    lista_krajow = sorted(df["Kraj"].tolist())
+    wybor_z_listy = st.selectbox("Możesz też wybrać z listy:", lista_krajow, index=lista_krajow.index(st.session_state.wybrany_kraj))
     
-    start = st.selectbox("🛫 Skąd lecimy?", lista_krajow, index=lista_krajow.index("Polska"))
-    cel = st.selectbox("🛬 Dokąd lecimy?", lista_krajow, index=lista_krajow.index("Francja"))
-    
-    st.markdown("---")
-    dystans = oblicz_dystans(miejsca[start]["lat"], miejsca[start]["lon"], miejsca[cel]["lat"], miejsca[cel]["lon"])
-    
-    st.info(f"📍 **Odległość:** {dystans} km")
-    
-    # Przycisk startu lotu
-    start_lotu = st.button("🚀 Wystartuj samolot!", use_container_width=True)
+    if wybor_z_listy != st.session_state.wybrany_kraj:
+        st.session_state.wybrany_kraj = wybor_z_listy
+        st.rerun()
 
 # --- 6. EKRAN GŁÓWNY ---
-st.markdown("## 🌍 Odkrywamy Europę!")
+st.markdown("## 🌍 Kolorowa Mapa Europy")
 
 col_map, col_card = st.columns([2.5, 1.5]) 
 
-# Współrzędne startowe i końcowe
-lat1, lon1 = miejsca[start]["lat"], miejsca[start]["lon"]
-lat2, lon2 = miejsca[cel]["lat"], miejsca[cel]["lon"]
-
 with col_map:
-    # Używamy st.empty(), aby stworzyć ramkę, w której będziemy podmieniać klatki animacji
-    mapa_placeholder = st.empty()
+    # Używamy Choropleth (mapa obszarowa), aby całe państwa były klikalne
+    fig = px.choropleth(
+        df,
+        locations="ISO3",       # Klucz łączący z mapą Plotly
+        color="Kraj",           # Każdy kraj będzie miał swój kolor z palety
+        hover_name="Kraj",
+        hover_data={"ISO3": False, "Kraj": False}, # Ukrywamy kody w dymku
+        color_discrete_sequence=px.colors.qualitative.Pastel # Pastelowa, dziecięca paleta barw!
+    )
 
-    if start_lotu and start != cel:
-        # LOGIKA ANIMACJI LOTU
-        liczba_klatek = 15
-        for klatka in range(liczba_klatek + 1):
-            # Obliczanie aktualnej pozycji samolotu w danej klatce (interpolacja)
-            obecny_lat = lat1 + (lat2 - lat1) * (klatka / liczba_klatek)
-            obecny_lon = lon1 + (lon2 - lon1) * (klatka / liczba_klatek)
-            
-            # Rysowanie nowej mapy
-            fig = rysuj_globus(start, cel, obecny_lat, obecny_lon)
-            
-            # Podmiana mapy w interfejsie
-            mapa_placeholder.plotly_chart(fig, use_container_width=True, height=600, config={'displayModeBar': False})
-            
-            # Krótka pauza przed narysowaniem kolejnej klatki
-            time.sleep(0.05)
-            
-        st.balloons() # Nagroda po wylądowaniu
-    else:
-        # Stan domyślny (samolot stoi na starcie)
-        fig = rysuj_globus(start, cel, lat1, lon1)
-        mapa_placeholder.plotly_chart(fig, use_container_width=True, height=600, config={'displayModeBar': False})
+    # Ustawienia globusa edukacyjnego
+    fig.update_geos(
+        projection=dict(
+            type="orthographic",
+            rotation=dict(lon=15, lat=50, roll=0) # Ustawia środek kuli domyślnie na Europę
+        ),
+        showcoastlines=True, coastlinecolor="#bdc3c7",
+        showland=True, landcolor="#ecf0f1",      # Szare tło dla państw, których nie ma w bazie
+        showocean=True, oceancolor="#ddf1f8",    # Jasnoniebieski ocean
+        showcountries=True, countrycolor="#bdc3c7",
+        resolution=50,
+        showframe=False
+    )
 
-# --- KARTA EDUKACYJNA KRAJU ---
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor='rgba(0,0,0,0)',
+        geo=dict(bgcolor='rgba(0,0,0,0)'),
+        showlegend=False, # Wyłączamy ogromną legendę z prawej strony
+    )
+
+    # Rysujemy mapę i ZBIERAMY DANE O KLIKNIĘCIU
+    event_data = st.plotly_chart(fig, use_container_width=True, height=600, on_select="rerun")
+    
+    # Obsługa kliknięcia przez dziecko w kształt na mapie
+    if event_data and len(event_data.get("selection", {}).get("points", [])) > 0:
+        # Odczytujemy ISO3 klikniętego państwa
+        klikniete_iso = event_data["selection"]["points"][0].get("location")
+        
+        # Jeśli kliknięto w państwo z naszej bazy
+        if klikniete_iso in df["ISO3"].values:
+            klikniety_kraj = df[df["ISO3"] == klikniete_iso].iloc[0]["Kraj"]
+            
+            # Jeśli to nowy kraj, aktualizujemy i odświeżamy kartę
+            if st.session_state.wybrany_kraj != klikniety_kraj:
+                st.session_state.wybrany_kraj = klikniety_kraj
+                st.rerun()
+
+# --- 7. KARTA EDUKACYJNA KRAJU ---
 with col_card:
-    st.markdown(f"### Cel: {cel}")
+    # Wyciągamy dane z DataFrame dla wybranego kraju
+    dane_kraju = df[df["Kraj"] == st.session_state.wybrany_kraj].iloc[0]
+    
+    st.markdown(f"### 📍 {dane_kraju['Kraj']}")
     with st.container():
-        kod_flagi = miejsca[cel]["kod"]
+        # Pobieranie flagi na podstawie kodu ISO2
         st.markdown(
-            f'<img src="https://flagpedia.net/data/flags/w580/{kod_flagi}.png" style="border-radius: 10px; width: 100%; border: 1px solid #ddd; margin-bottom: 15px;">',
+            f'<img src="https://flagpedia.net/data/flags/w580/{dane_kraju["ISO2"]}.png" style="border-radius: 10px; width: 100%; border: 1px solid #ddd; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">',
             unsafe_allow_html=True
         )
-        st.markdown(f"**🏛️ Stolica:** {miejsca[cel]['stolica']}")
+        st.markdown(f"**🏛️ Stolica:** {dane_kraju['Stolica']}")
         st.markdown("---")
-        st.markdown(f"**🧐 Czy wiesz, że...**")
-        st.success(miejsca[cel]["opis"])
+        st.markdown(f"**🧐 Ciekawostka:**")
+        st.success(dane_kraju['Opis'])

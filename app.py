@@ -1,95 +1,70 @@
 import streamlit as st
 import plotly.graph_objects as go
+import pandas as pd
 import math
-from datetime import datetime
+import time
 
-# --- 1. KONFIGURACJA STRONY (Kluczowe dla interfejsu pełnoekranowego) ---
-st.set_page_config(page_title="Global Tactical HUD", layout="wide", initial_sidebar_state="expanded")
+# --- 1. KONFIGURACJA STRONY ---
+st.set_page_config(page_title="Geografia dla Dzieci", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS: HOLOGRAFICZNY HUD & CYBER GRID ---
+# --- 2. CSS: JASNY, CZYTELNY, EDUKACYJNY STYL ---
 st.markdown("""
 <style>
-    /* Tło z cybernetyczną, taktyczną siatką */
     .stApp {
-        background-color: #020617; /* Bardzo głęboki granat/czerń */
-        background-image: 
-            linear-gradient(rgba(0, 242, 254, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0, 242, 254, 0.03) 1px, transparent 1px);
-        background-size: 30px 30px;
-        color: #e2e8f0;
-        font-family: 'Courier New', Courier, monospace; /* Techniczny font */
+        background-color: #f4f9f9; /* Bardzo jasny, przyjemny błękit/szarość */
+        color: #333333;
     }
-
-    /* Ukrycie standardowych śmieci Streamlit */
-    #MainMenu, footer, header {visibility: hidden;}
-
-    /* Kontenery - efekt HUD (Heads Up Display) */
+    /* Zaokrąglone, przyjazne karty */
     [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
-        background: rgba(2, 6, 23, 0.6);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border: 1px solid rgba(0, 242, 254, 0.2);
-        border-top: 3px solid #00f2fe; /* Świecąca górna krawędź */
-        border-radius: 5px; /* Ostre, techniczne krawędzie zamiast dużych zaokrągleń */
-        padding: 20px;
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.05);
+        background: white;
+        border-radius: 20px;
+        padding: 25px;
+        border: 2px solid #d1e8e2;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     }
-
-    /* Wygląd paska bocznego */
+    h2 { color: #2c3e50; text-align: center; font-weight: bold; margin-bottom: 20px;}
+    h3 { color: #e74c3c; font-weight: bold;}
+    .stSelectbox label { font-size: 1.1rem; font-weight: bold; color: #2c3e50; }
+    
+    /* Wygląd lewego panelu */
     [data-testid="stSidebar"] {
-        background-color: rgba(2, 6, 23, 0.9) !important;
-        border-right: 1px solid rgba(0, 242, 254, 0.2);
-    }
-    
-    /* Typografia HUD */
-    h1, h2, h3 {
-        font-family: 'Orbitron', 'Courier New', sans-serif; /* Kosmiczny klimat */
-        text-transform: uppercase;
-        letter-spacing: 2px;
-    }
-    h2 { color: #f8fafc; font-weight: 300; margin-bottom: 2rem; border-bottom: 1px solid rgba(0,242,254,0.3); padding-bottom: 10px;}
-    h3 { color: #00f2fe; font-size: 1.2rem; }
-    
-    /* Telemetria - własne klasy HTML */
-    .telemetry-box {
-        border-left: 2px solid #e94560;
-        padding-left: 15px;
-        margin-bottom: 15px;
-        background: linear-gradient(90deg, rgba(233, 69, 96, 0.1) 0%, transparent 100%);
-    }
-    .telemetry-value { font-size: 1.8rem; color: #e94560; font-weight: bold; text-shadow: 0 0 10px rgba(233,69,96,0.5); }
-    .telemetry-label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
-    
-    /* Zielony status */
-    .status-ok { color: #10b981; font-weight: bold; text-shadow: 0 0 5px rgba(16, 185, 129, 0.5); }
-    
-    /* Pulsacja dla przycisku */
-    .stButton button {
-        background: transparent;
-        border: 1px solid #00f2fe;
-        color: #00f2fe;
-        transition: all 0.3s ease;
-    }
-    .stButton button:hover {
-        background: rgba(0, 242, 254, 0.2);
-        box-shadow: 0 0 15px rgba(0, 242, 254, 0.5);
-        border: 1px solid #ffffff;
-        color: #ffffff;
+        background-color: #ffffff;
+        border-right: 2px solid #e0e0e0;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. BAZA DANYCH (Z dodatkowymi parametrami misji) ---
+# --- 3. BAZA DANYCH - KRAJE EUROPY ---
 miejsca = {
-    "Polska (Poznań)": {"lat": 52.406, "lon": 16.925, "kod": "pl", "klasa": "ALPHA", "opis": "Główny węzeł komunikacyjny uruchomiony. Gotowość do startu."},
-    "USA (Chicago)": {"lat": 41.878, "lon": -87.629, "kod": "us", "klasa": "OMEGA", "opis": "Cel główny wyznaczony na 1 Lipca. Trwa kalibracja systemów."},
-    "Hiszpania (Barcelona)": {"lat": 41.387, "lon": 2.168, "kod": "es", "klasa": "BETA", "opis": "Stacja pogodowa zgłasza optymalne warunki słoneczne."},
-    "Portugalia (Lizbona)": {"lat": 38.722, "lon": -9.139, "kod": "pt", "klasa": "GAMMA", "opis": "Zachodni kraniec siatki. Systemy nawigacji morskiej włączone."},
-    "Niemcy (Lipsk)": {"lat": 51.339, "lon": 12.373, "kod": "de", "klasa": "DELTA", "opis": "Sektor zaopatrzenia. Przepustowość logistyczna 100%."},
-    "Rumunia (Bukareszt)": {"lat": 44.426, "lon": 26.102, "kod": "ro", "klasa": "EPSILON", "opis": "Skany wschodniej części kontynentu w normie."}
+    "Polska": {"stolica": "Warszawa", "lat": 52.229, "lon": 21.012, "kod": "pl", "opis": "Nasz piękny kraj! Słynie z pierogów, smoka wawelskiego i pięknych gór."},
+    "Niemcy": {"stolica": "Berlin", "lat": 52.520, "lon": 13.405, "kod": "de", "opis": "Nasi sąsiedzi. Znani z pysznych precli i pięknych, baśniowych zamków."},
+    "Francja": {"stolica": "Paryż", "lat": 48.856, "lon": 2.352, "kod": "fr", "opis": "To tutaj stoi słynna Wieża Eiffla, a ludzie uwielbiają jeść chrupiące bagietki."},
+    "Hiszpania": {"stolica": "Madryt", "lat": 40.416, "lon": -3.703, "kod": "es", "opis": "Słoneczny kraj, gdzie zawsze jest ciepło, a w miastach rosną pomarańcze!"},
+    "Włochy": {"stolica": "Rzym", "lat": 41.902, "lon": 12.496, "kod": "it", "opis": "Kraj w kształcie buta! Ojczyzna najlepszej pizzy i spaghetti na świecie."},
+    "Wielka Brytania": {"stolica": "Londyn", "lat": 51.507, "lon": -0.127, "kod": "gb", "opis": "Kraj, w którym mieszka król. Mają tam słynne, czerwone, piętrowe autobusy."},
+    "Grecja": {"stolica": "Ateny", "lat": 37.983, "lon": 23.727, "kod": "gr", "opis": "Bardzo stary kraj pełen wysp i białych domków z niebieskimi dachami."},
+    "Szwecja": {"stolica": "Sztokholm", "lat": 59.329, "lon": 18.068, "kod": "se", "opis": "Zimny kraj na północy, skąd pochodzi Pippi Pończoszanka i klocki LEGO (blisko, bo z Danii!)."},
+    "Norwegia": {"stolica": "Oslo", "lat": 59.913, "lon": 10.752, "kod": "no", "opis": "Kraj wikingów, gdzie można zobaczyć zorzę polarną na niebie!"},
+    "Finlandia": {"stolica": "Helsinki", "lat": 60.169, "lon": 24.938, "kod": "fi", "opis": "To tutaj, w krainie zwanej Laponią, mieszka prawdziwy Święty Mikołaj."},
+    "Portugalia": {"stolica": "Lizbona", "lat": 38.722, "lon": -9.139, "kod": "pt", "opis": "Leży nad samym oceanem, stąd w dawnych czasach wypływali najwięksi odkrywcy."},
+    "Czechy": {"stolica": "Praga", "lat": 50.075, "lon": 14.437, "kod": "cz", "opis": "Kraj słynący z Krecika i pięknej stolicy pełnej mostów."},
+    "Austria": {"stolica": "Wiedeń", "lat": 48.208, "lon": 16.373, "kod": "at", "opis": "Kraj pięknych Alp, gdzie zimą wszyscy jeżdżą na nartach."},
+    "Szwajcaria": {"stolica": "Berno", "lat": 46.948, "lon": 7.447, "kod": "ch", "opis": "Słynie z produkcji najpyszniejszej mlecznej czekolady i dokładnych zegarków."},
+    "Holandia": {"stolica": "Amsterdam", "lat": 52.367, "lon": 4.904, "kod": "nl", "opis": "Kraj wiatraków, serów i milionów rowerów, którymi jeżdżą prawie wszyscy!"},
+    "Belgia": {"stolica": "Bruksela", "lat": 50.850, "lon": 4.351, "kod": "be", "opis": "Ojczyzna pysznych, gorących gofrów oraz słynnych komiksów o Smerfach."},
+    "Irlandia": {"stolica": "Dublin", "lat": 53.349, "lon": -6.260, "kod": "ie", "opis": "Zielona wyspa, której symbolem jest koniczynka i małe skrzaty - Leprechauny."},
+    "Dania": {"stolica": "Kopenhaga", "lat": 55.676, "lon": 12.568, "kod": "dk", "opis": "Prawdziwa ojczyzna klocków LEGO! Mają tam ogromny park rozrywki Legoland."},
+    "Chorwacja": {"stolica": "Zagrzeb", "lat": 45.815, "lon": 15.981, "kod": "hr", "opis": "Kraj nad ciepłym morzem, w którym plaże są kamieniste, a woda przejrzysta jak szkło."},
+    "Węgry": {"stolica": "Budapeszt", "lat": 47.497, "lon": 19.040, "kod": "hu", "opis": "Znani z pysznych dań doprawianych czerwoną papryką oraz basenów z gorącą wodą."},
+    "Rumunia": {"stolica": "Bukareszt", "lat": 44.426, "lon": 26.102, "kod": "ro", "opis": "Tutaj, w krainie zwanej Transylwanią, znajduje się mroczny zamek hrabiego Draculi."},
+    "Słowacja": {"stolica": "Bratysława", "lat": 48.148, "lon": 17.107, "kod": "sk", "opis": "Mają wspaniałe góry Tatry (te same co my!) oraz mnóstwo starych zamków."},
+    "Ukraina": {"stolica": "Kijów", "lat": 50.450, "lon": 30.523, "kod": "ua", "opis": "Nasz duży sąsiad, w którym znajdują się złote pola pszenicy i rosną piękne słoneczniki."},
+    "Litwa": {"stolica": "Wilno", "lat": 54.687, "lon": 25.279, "kod": "lt", "opis": "Kraj naszych wschodnich sąsiadów, z którym kiedyś tworzyliśmy jedno wielkie państwo."},
+    "Łotwa": {"stolica": "Ryga", "lat": 56.949, "lon": 24.105, "kod": "lv", "opis": "Leży nad zimnym Morzem Bałtyckim i słynie z gęstych, zielonych lasów."},
+    "Estonia": {"stolica": "Tallinn", "lat": 59.437, "lon": 24.753, "kod": "ee", "opis": "Najbardziej nowoczesny kraj na wschodzie Europy, gdzie mnóstwo rzeczy robi się przez internet!"}
 }
 
-# --- 4. SILNIK OBLICZENIOWY TELEMETRII ---
+# --- 4. FUNKCJE POMOCNICZE ---
 def oblicz_dystans(lat1, lon1, lat2, lon2):
     R = 6371
     dlat = math.radians(lat2 - lat1)
@@ -98,135 +73,125 @@ def oblicz_dystans(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return int(R * c)
 
-def format_coords(lat, lon):
-    ns = "N" if lat >= 0 else "S"
-    ew = "E" if lon >= 0 else "W"
-    return f"{abs(lat):.3f}° {ns} | {abs(lon):.3f}° {ew}"
-
-# --- 5. PANEL BOCZNY (Konsola Operatora) ---
-with st.sidebar:
-    st.markdown("<h2 style='font-size: 1.3rem;'>🛰️ UPLINK TERMINAL</h2>", unsafe_allow_html=True)
-    
-    # "Live" Clock simulation
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    st.markdown(f"<p style='color: #00f2fe; font-size: 0.8rem;'>SYS_TIME: {now} Z</p>", unsafe_allow_html=True)
-    st.markdown("---")
-    
-    lista_miast = list(miejsca.keys())
-    if 'start' not in st.session_state: st.session_state.start = lista_miast[0]
-    if 'cel' not in st.session_state: st.session_state.cel = lista_miast[1]
-
-    start = st.selectbox("ORIGIN (PUNKT ZERO)", lista_miast, index=lista_miast.index(st.session_state.start))
-    cel = st.selectbox("DESTINATION (CEL MISJI)", lista_miast, index=lista_miast.index(st.session_state.cel))
-
-    st.session_state.start = start; st.session_state.cel = cel
-    
-    st.markdown("---")
-    if start != cel:
-        dystans = oblicz_dystans(miejsca[start]["lat"], miejsca[start]["lon"], miejsca[cel]["lat"], miejsca[cel]["lon"])
-        czas_lotu = dystans / 850 # srednia predkosc pasazerska
-        godziny = int(czas_lotu)
-        minuty = int((czas_lotu - godziny) * 60)
-        paliwo = dystans * 3.16 # estymacja galonów
-        
-        st.markdown(f"""
-        <div class="telemetry-box">
-            <div class="telemetry-label">Trajektoria lotu (Dystans)</div>
-            <div class="telemetry-value">{dystans} KM</div>
-        </div>
-        <div class="telemetry-box">
-            <div class="telemetry-label">Estymowany czas przelotu</div>
-            <div class="telemetry-value" style="color:#00f2fe;">{godziny}H {minuty}M</div>
-        </div>
-        <div class="telemetry-box">
-            <div class="telemetry-label">Wymagane paliwo lotnicze</div>
-            <div class="telemetry-value" style="color:#f1c40f;">{int(paliwo)} GAL</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("INICJUJ SEKWENCJĘ LOTU"):
-            st.snow() # Efekt przecinania chmur w stratosferze
-    else:
-        st.error("BŁĄD: Pokrywanie się współrzędnych. Wybierz inny wektor.")
-
-# --- 6. EKRAN GŁÓWNY (Holograficzny Wykres) ---
-st.markdown("## GLOBALNY SYSTEM POZYCJONOWANIA TARTARUS")
-
-col_map, col_card = st.columns([3.5, 1.5]) 
-
-lat1, lon1 = miejsca[start]["lat"], miejsca[start]["lon"]
-lat2, lon2 = miejsca[cel]["lat"], miejsca[cel]["lon"]
-
-with col_map:
+# Funkcja rysująca globus - oddzielona, aby móc ją wywoływać podczas animacji
+def rysuj_globus(start_kraj, cel_kraj, samolot_lat, samolot_lon):
     fig = go.Figure()
 
-    # HOLOGRAFICZNA KULA ZIEMSKA
+    lat1, lon1 = miejsca[start_kraj]["lat"], miejsca[start_kraj]["lon"]
+    lat2, lon2 = miejsca[cel_kraj]["lat"], miejsca[cel_kraj]["lon"]
+
+    # --- USTAWIENIA KULI ZIEMSKIEJ (DLA DZIECI) ---
     fig.update_geos(
         projection_type="orthographic",
-        showcoastlines=True, coastlinecolor="rgba(0, 242, 254, 0.6)", # Jasnoświecące wybrzeża
-        showland=True, landcolor="rgba(2, 12, 27, 0.8)",    # Ciemny, lekko przezroczysty ląd
-        showocean=True, oceancolor="rgba(0,0,0,0)", # PEŁNA PRZEZROCZYSTOŚĆ (widać siatkę z CSS!)
-        lataxis_showgrid=True, lonaxis_showgrid=True, # Siatka geograficzna jak w radarze
-        lataxis_gridcolor="rgba(0, 242, 254, 0.1)", lonaxis_gridcolor="rgba(0, 242, 254, 0.1)",
+        showcoastlines=True, coastlinecolor="black",
+        showland=True, landcolor="#8de084",      # Jasna, ciepła zieleń
+        showocean=True, oceancolor="#a8d5e2",    # Błękitny ocean
+        showcountries=True, countrycolor="black", # WYRAŹNE granice państw!
+        countrywidth=1.5,
         resolution=50,
-        center=dict(lat=(lat1+lat2)/2, lon=(lon1+lon2)/2),
+        center=dict(lat=(lat1+lat2)/2, lon=(lon1+lon2)/2), # Środek kamery na Europie
         showframe=False
     )
 
+    # 1. Rysowanie czerwonych punktów dla państw
     lats = [d["lat"] for d in miejsca.values()]
     lons = [d["lon"] for d in miejsca.values()]
     names = list(miejsca.keys())
 
-    # Węzły sieci (Podwójna warstwa dla efektu GLOW)
-    # 1. Poświata (duże, półprzezroczyste kropki)
-    fig.add_trace(go.Scattergeo(
-        lon=lons, lat=lats, hoverinfo='none', mode='markers',
-        marker=dict(size=20, color='rgba(0, 242, 254, 0.2)'), showlegend=False
-    ))
-    # 2. Rdzeń węzła
     fig.add_trace(go.Scattergeo(
         lon=lons, lat=lats, text=names, hoverinfo='text', mode='markers',
-        marker=dict(size=8, color='#ffffff', line=dict(width=2, color='#00f2fe')), name="Węzły"
+        marker=dict(size=8, color='red', line=dict(width=1, color='white')),
+        name="Kraje"
     ))
 
-    # Wiązka Lasera (Trasa Lotu)
-    if start != cel:
+    # 2. Rysowanie przerywanej linii trasy (zawsze widoczna)
+    if start_kraj != cel_kraj:
         fig.add_trace(go.Scattergeo(
             lon=[lon1, lon2], lat=[lat1, lat2], mode='lines',
-            line=dict(width=3, color='#e94560', dash='solid'), name='Laser Link'
-        ))
-        # Symbol statku powietrznego
-        fig.add_trace(go.Scattergeo(
-            lon=[lon2], lat=[lat2], text=["✈"], mode='text',
-            textfont=dict(size=30, color="#e94560"), hoverinfo='none', name="Statek"
+            line=dict(width=3, color='#e74c3c', dash='dot'),
+            name='Trasa'
         ))
 
+    # 3. Rysowanie RUCHOMEGO SAMOLOTU
+    fig.add_trace(go.Scattergeo(
+        lon=[samolot_lon], lat=[samolot_lat], text=["✈️"], mode='text',
+        textfont=dict(size=35), hoverinfo='none', name="Samolot"
+    ))
+
+    # 4. Bezpieczne marginesy - zapobiegają ucinaniu dołu mapy!
     fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
+        margin=dict(l=40, r=40, t=40, b=40),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         geo=dict(bgcolor='rgba(0,0,0,0)'),
         showlegend=False,
     )
+    return fig
 
-    st.plotly_chart(fig, use_container_width=True, height=750, config={'displayModeBar': False})
+# --- 5. PANEL BOCZNY ---
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/854/854894.png", width=100) # Ikonka globusa
+    st.markdown("<h2>✈️ Plan Lotu</h2>", unsafe_allow_html=True)
+    
+    lista_krajow = sorted(list(miejsca.keys()))
+    
+    start = st.selectbox("🛫 Skąd lecimy?", lista_krajow, index=lista_krajow.index("Polska"))
+    cel = st.selectbox("🛬 Dokąd lecimy?", lista_krajow, index=lista_krajow.index("Francja"))
+    
+    st.markdown("---")
+    dystans = oblicz_dystans(miejsca[start]["lat"], miejsca[start]["lon"], miejsca[cel]["lat"], miejsca[cel]["lon"])
+    
+    st.info(f"📍 **Odległość:** {dystans} km")
+    
+    # Przycisk startu lotu
+    start_lotu = st.button("🚀 Wystartuj samolot!", use_container_width=True)
 
-# --- KARTA DANYCH WYWIADOWCZYCH ---
+# --- 6. EKRAN GŁÓWNY ---
+st.markdown("## 🌍 Odkrywamy Europę!")
+
+col_map, col_card = st.columns([2.5, 1.5]) 
+
+# Współrzędne startowe i końcowe
+lat1, lon1 = miejsca[start]["lat"], miejsca[start]["lon"]
+lat2, lon2 = miejsca[cel]["lat"], miejsca[cel]["lon"]
+
+with col_map:
+    # Używamy st.empty(), aby stworzyć ramkę, w której będziemy podmieniać klatki animacji
+    mapa_placeholder = st.empty()
+
+    if start_lotu and start != cel:
+        # LOGIKA ANIMACJI LOTU
+        liczba_klatek = 15
+        for klatka in range(liczba_klatek + 1):
+            # Obliczanie aktualnej pozycji samolotu w danej klatce (interpolacja)
+            obecny_lat = lat1 + (lat2 - lat1) * (klatka / liczba_klatek)
+            obecny_lon = lon1 + (lon2 - lon1) * (klatka / liczba_klatek)
+            
+            # Rysowanie nowej mapy
+            fig = rysuj_globus(start, cel, obecny_lat, obecny_lon)
+            
+            # Podmiana mapy w interfejsie
+            mapa_placeholder.plotly_chart(fig, use_container_width=True, height=600, config={'displayModeBar': False})
+            
+            # Krótka pauza przed narysowaniem kolejnej klatki
+            time.sleep(0.05)
+            
+        st.balloons() # Nagroda po wylądowaniu
+    else:
+        # Stan domyślny (samolot stoi na starcie)
+        fig = rysuj_globus(start, cel, lat1, lon1)
+        mapa_placeholder.plotly_chart(fig, use_container_width=True, height=600, config={'displayModeBar': False})
+
+# --- KARTA EDUKACYJNA KRAJU ---
 with col_card:
-    st.markdown(f"### ODCZYT SEKTORA: {cel.split(' ')[0]}")
+    st.markdown(f"### Cel: {cel}")
     with st.container():
         kod_flagi = miejsca[cel]["kod"]
         st.markdown(
-            f'<img src="https://flagpedia.net/data/flags/w580/{kod_flagi}.png" style="border-radius: 4px; width: 100%; border: 1px solid rgba(255,255,255,0.2); filter: grayscale(20%) contrast(120%); margin-bottom: 20px;">',
+            f'<img src="https://flagpedia.net/data/flags/w580/{kod_flagi}.png" style="border-radius: 10px; width: 100%; border: 1px solid #ddd; margin-bottom: 15px;">',
             unsafe_allow_html=True
         )
-        
-        # Cyfrowe, wojskowe współrzędne
-        coords = format_coords(lat2, lon2)
-        st.markdown(f"<p style='color: #00f2fe; font-size: 0.9rem;'>LOC: [ {coords} ]</p>", unsafe_allow_html=True)
-        
-        st.markdown(f"<p style='color: #94a3b8; font-size: 0.8rem;'>KLASYFIKACJA WĘZŁA: <span style='color: white;'>{miejsca[cel]['klasa']}</span></p>", unsafe_allow_html=True)
-        st.markdown(f"<p style='color: #94a3b8; font-size: 0.8rem;'>STATUS SIECI: <span class='status-ok'>ZABEZPIECZONY</span></p>", unsafe_allow_html=True)
-        
+        st.markdown(f"**🏛️ Stolica:** {miejsca[cel]['stolica']}")
         st.markdown("---")
-        st.markdown(f"<p style='color: #cbd5e1; font-size: 1rem; line-height: 1.5; font-family: monospace;'>{miejsca[cel]['opis']}</p>", unsafe_allow_html=True)
+        st.markdown(f"**🧐 Czy wiesz, że...**")
+        st.success(miejsca[cel]["opis"])
